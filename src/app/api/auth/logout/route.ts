@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { clearSessionCookie, getSession, logAudit } from "@/lib/auth";
 
