@@ -1,0 +1,383 @@
+// SantéLink — Schéma Prisma (PostgreSQL)
+// Cahier des charges: 4 rôles, DPI, ordonnances QR, stocks pharmacie, audit
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  MEDECIN
+  PHARMACIEN
+  PATIENT
+}
+
+enum StatutCompte {
+  EN_ATTENTE
+  VALIDE
+  SUSPENDU
+  REJETE
+}
+
+enum StatutOrdonnance {
+  VALIDE
+  PARTIELLEMENT_DELIVREE
+  DELIVREE
+  EXPIREE
+  ANNULEE
+}
+
+enum StatutRendezVous {
+  PLANIFIE
+  CONFIRME
+  ANNULE
+  TERMINE
+}
+
+enum TypeConsultation {
+  PREMIERE_VISITE
+  SUIVI
+  URGENCE
+  TELECONSULTATION
+}
+
+// ─── UTILISATEURS ────────────────────────────────────────────────────────────
+
+model User {
+  id              String       @id @default(uuid())
+  email           String       @unique
+  passwordHash    String       @map("password_hash")
+  role            Role
+  statutCompte    StatutCompte @default(EN_ATTENTE) @map("statut_compte")
+  nom             String
+  prenom          String
+  telephone       String?
+  photoUrl        String?      @map("photo_url")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  lastLoginAt     DateTime?    @map("last_login_at")
+
+  // Relations
+  patient         Patient?
+  medecin         Medecin?
+  pharmacien      Pharmacien?
+  auditLogs       AuditLog[]
+  sessions        Session[]
+  validePar       User?        @relation("ValidateurComptes", fields: [valideParId], references: [id])
+  valideParId     String?      @map("valide_par_id")
+  comptesValides  User[]       @relation("ValidateurComptes")
+  notifications   Notification[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ─── PATIENTS ────────────────────────────────────────────────────────────────
+
+model Patient {
+  id               String    @id @default(uuid())
+  userId           String    @unique @map("user_id")
+  numDossier       String    @unique @map("num_dossier") // Ex: PAT-2024-00001
+  dateNaissance    DateTime  @map("date_naissance")
+  sexe             String    // M / F
+  adresse          String?
+  groupeSanguin    String?   @map("groupe_sanguin")
+  estMineur        Boolean   @default(false) @map("est_mineur")
+  representantId   String?   @map("representant_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  representant     Patient?  @relation("RepresentantMineur", fields: [representantId], references: [id])
+  mineurs          Patient[] @relation("RepresentantMineur")
+  consultations    Consultation[]
+  ordonnances      Ordonnance[]
+  rendezVous       RendezVous[]
+  antecedents      Antecedent[]
+  allergies        Allergie[]
+
+  @@map("patients")
+}
+
+model Antecedent {
+  id          String   @id @default(uuid())
+  patientId   String   @map("patient_id")
+  type        String   // MEDICAL, CHIRURGICAL, FAMILIAL, ALLERGIQUE
+  description String
+  dateDebut   DateTime? @map("date_debut")
+  dateFin     DateTime? @map("date_fin")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("antecedents")
+}
+
+model Allergie {
+  id          String   @id @default(uuid())
+  patientId   String   @map("patient_id")
+  substance   String
+  reaction    String?
+  severite    String?  // LEGERE, MODEREE, SEVERE
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("allergies")
+}
+
+// ─── MÉDECINS ────────────────────────────────────────────────────────────────
+
+model Medecin {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  numOrdre        String   @unique @map("num_ordre")
+  specialite      String
+  structure       String   // Hôpital / Clinique / Cabinet
+  adresseStructure String? @map("adresse_structure")
+  telephoneStructure String? @map("telephone_structure")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consultations   Consultation[]
+  ordonnances     Ordonnance[]
+  rendezVous      RendezVous[]
+
+  @@map("medecins")
+}
+
+// ─── PHARMACIENS ─────────────────────────────────────────────────────────────
+
+model Pharmacien {
+  id               String   @id @default(uuid())
+  userId           String   @unique @map("user_id")
+  numAutorisation  String   @unique @map("num_autorisation")
+  nomOfficine      String   @map("nom_officine")
+  adresseOfficine  String   @map("adresse_officine")
+  latitude         Float?
+  longitude        Float?
+  telephoneOfficine String? @map("telephone_officine")
+  whatsapp         String?
+  horaires         String?  // JSON string des horaires d'ouverture
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stocks           StockMedicament[]
+  delivrances      Delivrance[]
+
+  @@map("pharmaciens")
+}
+
+// ─── CONSULTATIONS ───────────────────────────────────────────────────────────
+
+model Consultation {
+  id              String           @id @default(uuid())
+  patientId       String           @map("patient_id")
+  medecinId       String           @map("medecin_id")
+  typeConsultation TypeConsultation @default(PREMIERE_VISITE) @map("type_consultation")
+  motif           String
+  diagnostic      String?
+  notes           String?
+  poids           Float?           // kg
+  taille          Float?           // cm
+  tension         String?          // ex: "120/80"
+  temperature     Float?           // °C
+  dateConsultation DateTime        @default(now()) @map("date_consultation")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  patient         Patient          @relation(fields: [patientId], references: [id])
+  medecin         Medecin          @relation(fields: [medecinId], references: [id])
+  ordonnances     Ordonnance[]
+
+  @@map("consultations")
+}
+
+// ─── ORDONNANCES & QR CODE ───────────────────────────────────────────────────
+
+model Ordonnance {
+  id              String           @id @default(uuid())
+  consultationId  String           @map("consultation_id")
+  patientId       String           @map("patient_id")
+  medecinId       String           @map("medecin_id")
+  qrCodeHash      String           @unique @map("qr_code_hash") // SHA-256 signé
+  statut          StatutOrdonnance @default(VALIDE)
+  dateEmission    DateTime         @default(now()) @map("date_emission")
+  dateExpiration  DateTime         @map("date_expiration")
+  notes           String?
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  consultation    Consultation     @relation(fields: [consultationId], references: [id])
+  patient         Patient          @relation(fields: [patientId], references: [id])
+  medecin         Medecin          @relation(fields: [medecinId], references: [id])
+  lignes          LigneOrdonnance[]
+  delivrances     Delivrance[]
+
+  @@map("ordonnances")
+}
+
+model LigneOrdonnance {
+  id            String   @id @default(uuid())
+  ordonnanceId  String   @map("ordonnance_id")
+  medicamentId  String   @map("medicament_id")
+  posologie     String   // ex: "2 comprimés matin et soir"
+  duree         String   // ex: "7 jours"
+  quantite      Int
+  instructions  String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  ordonnance    Ordonnance   @relation(fields: [ordonnanceId], references: [id], onDelete: Cascade)
+  medicament    Medicament   @relation(fields: [medicamentId], references: [id])
+  delivrances   DelivranceLigne[]
+
+  @@map("lignes_ordonnance")
+}
+
+// ─── MÉDICAMENTS ─────────────────────────────────────────────────────────────
+
+model Medicament {
+  id            String   @id @default(uuid())
+  nomDci        String   @map("nom_dci")   // Dénomination Commune Internationale
+  nomCommercial String?  @map("nom_commercial")
+  forme         String   // comprimé, sirop, injection...
+  dosage        String   // ex: "500mg"
+  voieAdmin     String   @map("voie_admin") // orale, IV, IM...
+  categorie     String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  lignesOrdonnance LigneOrdonnance[]
+  stocks           StockMedicament[]
+
+  @@unique([nomDci, forme, dosage])
+  @@map("medicaments")
+}
+
+model StockMedicament {
+  id            String     @id @default(uuid())
+  pharmacienId  String     @map("pharmacien_id")
+  medicamentId  String     @map("medicament_id")
+  quantite      Int        @default(0)
+  prixUnitaire  Float?     @map("prix_unitaire")
+  seuilAlerte   Int        @default(10) @map("seuil_alerte")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  pharmacien    Pharmacien  @relation(fields: [pharmacienId], references: [id], onDelete: Cascade)
+  medicament    Medicament  @relation(fields: [medicamentId], references: [id])
+
+  @@unique([pharmacienId, medicamentId])
+  @@map("stocks_medicaments")
+}
+
+// ─── DÉLIVRANCES ─────────────────────────────────────────────────────────────
+
+model Delivrance {
+  id            String     @id @default(uuid())
+  ordonnanceId  String     @map("ordonnance_id")
+  pharmacienId  String     @map("pharmacien_id")
+  dateDelivrance DateTime  @default(now()) @map("date_delivrance")
+  notes         String?
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  ordonnance    Ordonnance @relation(fields: [ordonnanceId], references: [id])
+  pharmacien    Pharmacien @relation(fields: [pharmacienId], references: [id])
+  lignes        DelivranceLigne[]
+
+  @@map("delivrances")
+}
+
+model DelivranceLigne {
+  id              String   @id @default(uuid())
+  delivranceId    String   @map("delivrance_id")
+  ligneOrdonnanceId String @map("ligne_ordonnance_id")
+  quantiteDelivree Int     @map("quantite_delivree")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  delivrance      Delivrance      @relation(fields: [delivranceId], references: [id], onDelete: Cascade)
+  ligneOrdonnance LigneOrdonnance @relation(fields: [ligneOrdonnanceId], references: [id])
+
+  @@map("delivrance_lignes")
+}
+
+// ─── RENDEZ-VOUS ─────────────────────────────────────────────────────────────
+
+model RendezVous {
+  id          String           @id @default(uuid())
+  patientId   String           @map("patient_id")
+  medecinId   String           @map("medecin_id")
+  dateHeure   DateTime         @map("date_heure")
+  motif       String
+  statut      StatutRendezVous @default(PLANIFIE)
+  notes       String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  patient     Patient @relation(fields: [patientId], references: [id])
+  medecin     Medecin @relation(fields: [medecinId], references: [id])
+
+  @@map("rendez_vous")
+}
+
+// ─── AUDIT & NOTIFICATIONS ───────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  action    String   // ex: LOGIN, CREATE_ORDONNANCE, SCAN_QR, UPDATE_STOCK
+  entite    String?  // ex: Ordonnance, Patient, Stock
+  entiteId  String?  @map("entite_id")
+  details   Json?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  titre     String
+  message   String
+  type      String   // INFO, WARNING, SUCCESS, ERROR
+  lu        Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
