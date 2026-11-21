@@ -57,7 +57,7 @@ export default async function AdminDashboard() {
               {pendingUsers} compte{pendingUsers > 1 ? "s" : ""} professionnel{pendingUsers > 1 ? "s" : ""} en attente de validation
             </p>
             <p className="text-sm text-amber-600">
-              Conformément aux règles RG-01/02, chaque professionnel doit être validé avant activation.
+              Conformément aux règles RG-01/02, chaque professionnel doit être validé avant activation
             </p>
           </div>
         </div>
