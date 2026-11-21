@@ -209,7 +209,7 @@ export default function HomePage() {
               </span>
             </div>
             <p className="text-sm">
-              © {new Date().getFullYear()} SantéLink — Coordination des soins en Guinée
+              © {new Date().getFullYear()} SantéLink — Coordination des soins en Guinée GN
             </p>
           </div>
         </div>
