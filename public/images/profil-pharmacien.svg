@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" role="img" aria-label="Portrait illustré d'un pharmacien">
+  <defs>
+    <linearGradient id="pp" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f0fdfa"/><stop offset="100%" stop-color="#e0f2fe"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="500" fill="url(#pp)"/>
+  <circle cx="200" cy="190" r="150" fill="#ffffff" opacity="0.5"/>
+  <g opacity="0.35">
+    <rect x="24" y="70" width="46" height="120" rx="7" fill="#0d9488"/>
+    <rect x="80" y="52" width="40" height="138" rx="7" fill="#0284c7"/>
+    <rect x="330" y="62" width="44" height="128" rx="7" fill="#0d9488"/>
+  </g>
+  <path d="M70 500c0-105 52-168 130-168s130 63 130 168z" fill="#ffffff"/>
+  <path d="M150 340c14 32 30 48 50 48s36-16 50-48l-20-14-30 30-30-30z" fill="#0d9488"/>
+  <path d="M150 340l-16 42 26 118h26l-18-118 8-30z" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <path d="M250 340l16 42-26 118h-26l18-118-8-30z" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <circle cx="200" cy="230" r="64" fill="#6b4429"/>
+  <path d="M138 214c2-46 26-72 62-72s60 26 62 72c-16-22-34-32-62-32s-46 10-62 32z" fill="#1f2937"/>
+  <path d="M168 262c12 10 22 14 32 14s20-4 32-14" fill="none" stroke="#432716" stroke-width="5" stroke-linecap="round"/>
+  <path d="M178 236h7m30 0h7" stroke="#111827" stroke-width="6" stroke-linecap="round"/>
+  <path d="M188 254c8 6 16 6 24 0" fill="none" stroke="#432716" stroke-width="4" stroke-linecap="round"/>
+  <g transform="translate(292 396) rotate(-14)">
+    <rect width="66" height="28" rx="14" fill="#fecaca"/>
+    <path d="M33 0h20a14 14 0 010 28H33z" fill="#ef4444"/>
+  </g>
+  <g fill="#0d9488" opacity="0.35">
+    <circle cx="70" cy="180" r="9"/><circle cx="340" cy="210" r="11"/>
+  </g>
+</svg>
